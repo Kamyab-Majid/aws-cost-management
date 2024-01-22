@@ -1,0 +1,114 @@
+{
+    "StartAt": "DescribeClusters",
+    "States": {
+      "DescribeClusters": {
+        "Type": "Task",
+        "Next": "Choice (2)",
+        "Parameters": {},
+        "Resource": "arn:aws:states:::aws-sdk:redshift:describeClusters",
+        "OutputPath": "$.Clusters[?(@.ClusterIdentifier == 'nfl-dw-data-worker')]"
+      },
+      "Choice (2)": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Not": {
+              "Variable": "$.ClusterAvailabilityStatus",
+              "StringEquals": "Available"
+            },
+            "Next": "ResumeCluster"
+          }
+        ],
+        "Default": "SNS Publish (1)",
+        "InputPath": "$[0]"
+      },
+      "SNS Publish (1)": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "Message.$": "$",
+          "TopicArn": "arn:aws:sns:us-east-1:574179717609:redshift-resumed-nfl-data-worker"
+        },
+        "Next": "Success"
+      },
+      "Success": {
+        "Type": "Succeed"
+      },
+      "ResumeCluster": {
+        "Type": "Task",
+        "Next": "Wait (300)",
+        "Parameters": {
+          "ClusterIdentifier": "nfl-dw-data-worker"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:redshift:resumeCluster",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.TaskFailed"
+            ],
+            "Next": "Wait (300)"
+          }
+        ]
+      },
+      "Wait (300)": {
+        "Type": "Wait",
+        "Seconds": 600,
+        "Next": "DescribeClusters (1)"
+      },
+      "DescribeClusters (1)": {
+        "Type": "Task",
+        "Next": "Choice (1)",
+        "Parameters": {},
+        "Resource": "arn:aws:states:::aws-sdk:redshift:describeClusters",
+        "OutputPath": "$.Clusters[?(@.ClusterIdentifier == 'nfl-dw-data-worker')]"
+      },
+      "Choice (1)": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Not": {
+              "Variable": "$.ClusterAvailabilityStatus",
+              "StringEquals": "Available"
+            },
+            "Next": "ResumeCluster (1)"
+          }
+        ],
+        "Default": "SNS Publish (2)",
+        "InputPath": "$[0]"
+      },
+      "SNS Publish (2)": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "arn:aws:sns:us-east-1:574179717609:redshift-resumed-nfl-data-worker",
+          "Message.$": "$"
+        },
+        "Next": "Success"
+      },
+      "ResumeCluster (1)": {
+        "Type": "Task",
+        "Next": "SNS Publish",
+        "Parameters": {
+          "ClusterIdentifier": "nfl-dw-data-worker"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:redshift:resumeCluster",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.TaskFailed"
+            ],
+            "Next": "SNS Publish"
+          }
+        ]
+      },
+      "SNS Publish": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "arn:aws:sns:us-east-1:574179717609:redshift-resume-fail",
+          "Message.$": "$"
+        },
+        "Next": "Wait (300)"
+      }
+    }
+  }

@@ -1,0 +1,15 @@
+Bucket Name,Size (TB),Size Standard (TB)
+aws-athena-query-results-399450685648-us-east-1,,8.634819761996368
+aws-glue-assets-399450685648-us-east-1,,1.2375364434910807
+nfl-athena-output-sand,,2.1752148500345356
+nfl-sand-bucket-49ers,,1.5760505212565477
+nfl-sandbox-alacrity-matching,,4.929894865736969
+nfl-sandbox-alacrity-playground,,1.7397884866732056
+nfl-sandbox-datalake-archivezone,,2.046899190154363
+nfl-sandbox-datalake-curatedzone,,17.65720564316871
+nfl-sandbox-datalake-customer-zone,,14.614980186102002
+nfl-sandbox-datalake-dropzone,,9.101700922677082
+nfl-sandbox-datalake-rawzone,,2.2686596534158525
+nfl-sandbox-datalake-refinedzone,,28.1155948072892
+nfl-sandbox-datalake-vendor-dropzone,,4.049460375190392
+nfl-sandbox-dia-ticketing,,26.299331142451592
