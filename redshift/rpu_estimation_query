@@ -1,0 +1,92 @@
+WITH scan_sum AS (
+    SELECT 
+        query_id,
+        segment_id,
+        SUM(output_bytes) AS bytes,
+        ROUND(DATEDIFF(ms, MIN(start_time), MAX(end_time)) / 1000.0, 3) AS seg_sec
+    FROM 
+        sys_query_detail
+    WHERE 
+        user_id > 1
+        AND step_name = 'scan'
+        -- AND start_time >= '2024-08-21 00:00:00'
+    GROUP BY 
+        query_id, segment_id
+),
+scan_list AS (
+    SELECT 
+        query_id,
+        MAX(bytes) AS max_scan_bytes,
+        MAX(CASE WHEN seg_sec > 0 THEN seg_sec ELSE 0 END) AS seg_sec_max
+    FROM 
+        scan_sum
+    GROUP BY 
+        query_id
+),
+query_list AS (
+    SELECT 
+        w.query_id, 
+        w.query_text,
+        w.user_id,
+        w.status,
+        w.start_time,
+        w.end_time,
+        ROUND(w.execution_time / 1000 / 1000.0, 3) AS exec_sec,
+        sc.max_scan_bytes,
+        sc.seg_sec_max,
+        CASE
+            WHEN sc.max_scan_bytes < 1000000000 THEN 'xx-small-8RPU'
+            WHEN sc.max_scan_bytes < 10000000000 THEN 'x-small-32RPU'
+            WHEN sc.max_scan_bytes < 100000000000 THEN 'small-64RPU'
+            WHEN sc.max_scan_bytes < 500000000000 THEN 'medium-128RPU'
+            WHEN sc.max_scan_bytes < 1000000000000 THEN 'large-256RPU'
+            WHEN sc.max_scan_bytes < 3000000000000 THEN 'x-large-512RPU'
+            WHEN sc.max_scan_bytes > 3000000000000 THEN 'xx-large-1024RPU'
+            ELSE 'N/A'
+        END AS size_type
+    FROM 
+        sys_query_history w
+    JOIN 
+        scan_list sc ON sc.query_id = w.query_id
+),
+usage_summary AS (
+    SELECT 
+        trunc(su.start_time) AS day,
+        SUM(su.compute_seconds) AS total_compute_seconds,
+        SUM(su.charged_seconds) AS total_charged_seconds,
+        AVG(su.compute_capacity) AS charged_compute_capacity
+    FROM 
+        sys_serverless_usage su
+    WHERE su.compute_capacity != 0
+    GROUP BY 
+        trunc(su.start_time)
+)
+SELECT 
+    trunc(q.start_time) AS "Day", 
+    q.size_type,
+    q.query_id, 
+    q.query_text,
+    u.usename,
+    COUNT(*) AS query_cnt,
+    SUM(q.exec_sec) AS total_exec_sec,
+    us.total_compute_seconds AS total_rpuseconds,
+    us.charged_compute_capacity AS rpu_charged,
+    us.total_charged_seconds AS total_charged_seconds,
+    (us.total_charged_seconds / 3600.0) * 0.375 AS cost_incurred
+FROM 
+    query_list q
+JOIN 
+    pg_user u ON q.user_id = u.usesysid
+JOIN 
+    usage_summary us ON trunc(q.start_time) = us.day
+GROUP BY 
+    1, 
+    u.usename, 
+    q.size_type, 
+    q.query_id, 
+    q.query_text,
+    us.total_compute_seconds, 
+    us.charged_compute_capacity, 
+    us.total_charged_seconds
+ORDER BY 
+    1;
